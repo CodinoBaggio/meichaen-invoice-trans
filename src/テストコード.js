@@ -1,3 +1,3 @@
-function test_getCloseDate() {
-  const date = getCloseDate('end');
+function test_merge() {
+  merge();
 }
