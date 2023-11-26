@@ -8,19 +8,27 @@ function sendInvoicesInFolder() {
     customerInfo.forEach((customer) => {
       // 対象の請求書を取得する
       const invoices = getInvoices(customer);
+      if (0 < invoices.length) {
+        // 請求書をマージする
+        const mergedInvoice = mergeInvoice(customer, invoices);
 
-      invoices.forEach((invoice) => {
         // 請求先情報に紐づく請求書をメールで送付する
-        const result = sendMail(customer, invoice);
+        const result = sendMail(customer, mergedInvoice);
 
         // Emailシートに送った履歴を記載する
-        writeHitory(customer, invoice, result);
+        writeHitory(customer, mergedInvoice, result);
 
         // メール送付が成功した請求書を送信済みフォルダに移動する
         if (result) {
-          moveInvoice(invoice);
+          // マージ後ファイルを送信済みフォルダに移動する
+          moveInvoice(mergedInvoice);
+
+          // マージ前ファイルを送信済みフォルダに移動する
+          invoices.forEach((invoice) => {
+            moveInvoice(invoice);
+          });
         }
-      });
+      }
     });
   } catch (e) {
     Browser.msgBox(e);
@@ -68,6 +76,7 @@ const getInvoices = (customer) => {
       fileId,
       fileURL,
       invoiceCd,
+      file,
     });
   }
 
@@ -131,4 +140,28 @@ const moveInvoice = (invoice) => {
     PropertiesService.getScriptProperties().getProperty('sentFolder')
   );
   file.moveTo(folder);
+};
+
+const mergeInvoice = (customer, invoices) => {
+  // 請求書が1つの場合はそのまま返す
+  if (invoices.length == 1) {
+    return invoices[0];
+  }
+
+  // マージする
+  const pdfList = invoices.map((invoice) => invoice.file);
+  const parts = pdfList[0].getName().split('_').slice(0, 2);
+  const outputName = parts.join('_') + '.pdf';
+  const mergedFile = mergePdfs(
+    DriveApp.getFolderById(scriptProperty.awaitingSendFolder),
+    outputName,
+    pdfList
+  );
+
+  return {
+    fileName: outputName,
+    fileId: mergedFile.getId(),
+    fileURL: mergedFile.getUrl(),
+    invoiceCd: customer.invoiceCd,
+  };
 };
